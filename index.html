@@ -3,60 +3,126 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Look First</title>
+<title>Look First: the AI naturalist that gets you outside</title>
+<meta name="description" content="An offline-capable open-weight AI (Gemma) that coaches you to observe nature first, then reveals what you found. Runs entirely in your browser.">
 <style>
-  :root { --bg:#f4f1e8; --ink:#1f2a1f; --green:#2f6b3a; --card:#fffdf6; --line:#d9d3bf; }
+  :root { --bg:#f4f1e8; --ink:#1f2a1f; --green:#2f6b3a; --deep:#1d4a27; --leaf:#8fc46b; --card:#fffdf6; --line:#d9d3bf; --muted:#5a5a4a; }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.55 Georgia, serif; }
-  main { max-width:680px; margin:0 auto; padding:24px 16px 60px; }
-  h1 { font-size:2rem; margin:0 0 4px; color:var(--green); }
-  .tag { margin:0 0 20px; font-style:italic; }
-  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:14px 0; }
+  html { scroll-behavior:smooth; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.6 Georgia, "Times New Roman", serif; }
+  .wrap { max-width:760px; margin:0 auto; padding:0 18px; }
+
+  /* HERO */
+  .hero { background:linear-gradient(160deg,var(--deep),var(--green) 60%,#4f8f4a); color:#fff; padding:44px 0 54px; text-align:center; }
+  .eyebrow { display:inline-block; font:600 .78rem/1 system-ui,sans-serif; letter-spacing:.12em; text-transform:uppercase; background:rgba(255,255,255,.16); padding:7px 12px; border-radius:99px; margin-bottom:18px; }
+  .hero h1 { font-size:clamp(2.2rem,7vw,3.4rem); line-height:1.08; margin:0 0 14px; }
+  .hero h1 em { color:var(--leaf); font-style:normal; }
+  .hero p { font-size:1.15rem; max-width:560px; margin:0 auto 24px; color:#e8f3df; }
+  .cta { display:inline-block; font:700 1rem system-ui,sans-serif; background:#fff; color:var(--deep); padding:13px 24px; border-radius:10px; text-decoration:none; }
+
+  /* HOW IT WORKS */
+  h2 { font-size:1.5rem; margin:36px 0 14px; color:var(--deep); text-align:center; }
+  .steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:12px; }
+  .step { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 16px; text-align:center; }
+  .step .n { font:700 .8rem system-ui,sans-serif; color:var(--green); letter-spacing:.1em; }
+  .step .ic { font-size:2rem; margin:6px 0; }
+  .step b { display:block; font-size:1.05rem; margin-bottom:4px; }
+  .step span { font-size:.95rem; color:var(--muted); }
+
+  /* BADGES */
+  .badges { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:6px 0 4px; }
+  .badge { font:600 .85rem system-ui,sans-serif; background:#e6efd9; color:var(--deep); padding:8px 12px; border-radius:99px; }
+
+  /* APP */
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px; margin:14px 0; }
   label { display:block; font-weight:bold; margin-bottom:6px; }
   textarea, select { width:100%; font:inherit; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
-  textarea { min-height:80px; }
-  button { font:inherit; font-weight:bold; background:var(--green); color:#fff; border:0; border-radius:8px; padding:10px 16px; margin-top:10px; cursor:pointer; }
-  button:disabled { opacity:.5; cursor:wait; }
+  textarea { min-height:84px; }
+  button { font:700 1rem system-ui,sans-serif; background:var(--green); color:#fff; border:0; border-radius:8px; padding:11px 16px; margin-top:10px; cursor:pointer; }
+  button:disabled { opacity:.55; cursor:wait; }
   button.ghost { background:transparent; color:var(--green); border:1px solid var(--green); }
-  .out { white-space:pre-wrap; }
-  #status { font-size:.9rem; color:#5a5a4a; }
+  .chips { display:flex; flex-wrap:wrap; gap:6px; margin:8px 0 0; }
+  .chip { font:500 .85rem system-ui,sans-serif; background:#eef3e4; color:var(--deep); border:1px solid var(--line); border-radius:99px; padding:6px 10px; margin:0; cursor:pointer; }
+  .out { white-space:pre-wrap; margin-top:12px; }
+  .out:empty { display:none; }
+  .answer { background:#f0f6e6; border-left:4px solid var(--green); padding:12px 14px; border-radius:6px; }
+  .tag { display:inline-block; font:700 .75rem system-ui,sans-serif; background:var(--green); color:#fff; padding:3px 8px; border-radius:6px; margin-bottom:8px; letter-spacing:.06em; }
+  #status { font:.9rem system-ui,sans-serif; color:var(--muted); margin:10px 0 0; }
   .hidden { display:none; }
-  small { color:#5a5a4a; }
+  .note { font:.85rem system-ui,sans-serif; color:var(--muted); text-align:center; margin:18px 0; }
+  footer { background:var(--deep); color:#cfe3c4; text-align:center; padding:26px 18px; font:.9rem system-ui,sans-serif; margin-top:36px; }
+  footer b { color:#fff; }
 </style>
 </head>
 <body>
-<main>
-  <h1>🌿 Look First</h1>
-  <p class="tag">An AI naturalist that makes you look up before it tells you anything. Runs Gemma fully in your browser, no server and no API key.</p>
+
+<header class="hero">
+  <div class="wrap">
+    <span class="eyebrow">Hacktoberfest · Touch Grass</span>
+    <h1>Look up. <em>Then</em> ask the AI.</h1>
+    <p>Most AI plant and bird identifiers keep you staring at a screen. Look First does the opposite: it makes you observe the real world first, then reveals what you found.</p>
+    <a class="cta" href="#app">Try it now ↓</a>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <h2>How it works</h2>
+  <div class="steps">
+    <div class="step"><div class="n">STEP 1</div><div class="ic">📍</div><b>Say where you are</b><span>Describe what's around you in a sentence.</span></div>
+    <div class="step"><div class="n">STEP 2</div><div class="ic">👀</div><b>Go look</b><span>You get 3 quick tasks. Phone goes in your pocket.</span></div>
+    <div class="step"><div class="n">STEP 3</div><div class="ic">🌿</div><b>Get the reveal</b><span>A best guess, a confidence level, and a tiny next quest.</span></div>
+  </div>
+
+  <h2>Why open-weight AI?</h2>
+  <div class="badges">
+    <span class="badge">🧠 Gemma runs in your browser</span>
+    <span class="badge">📴 Works offline after first load</span>
+    <span class="badge">🔒 Your notes never leave your device</span>
+    <span class="badge">💸 No API key, no cost</span>
+    <span class="badge">🔁 Swap models in one click</span>
+  </div>
+
+  <h2 id="app">Try it</h2>
 
   <div class="card">
     <label for="model">Model (open-weight, runs on your device)</label>
     <select id="model"></select>
-    <button id="load">1. Load model (first time takes a few minutes)</button>
-    <p id="status">Needs a WebGPU browser (recent Chrome or Edge).</p>
+    <button id="load">Load the AI (first time takes a few minutes)</button>
+    <p id="status">Needs a WebGPU browser (recent Chrome or Edge). The model downloads once, then is cached.</p>
   </div>
 
   <div class="card hidden" id="step1">
-    <label for="where">Step 1: Where are you, and what's around you?</label>
-    <textarea id="where" placeholder="e.g. Campus garden, big tree with rough bark, some small yellow flowers, bees buzzing"></textarea>
+    <label for="where">📍 Step 1: Where are you, and what's around you?</label>
+    <textarea id="where" placeholder="e.g. Campus garden, big tree with rough bark, small yellow flowers, bees buzzing"></textarea>
+    <div class="chips">
+      <button class="chip" data-ex="Campus garden, a big tree with rough grey bark and small yellow flowers nearby, bees buzzing">🌳 Campus tree</button>
+      <button class="chip" data-ex="Roadside, a small bird with a long tail hopping on a fence, making a repeating chirp">🐦 Small bird</button>
+      <button class="chip" data-ex="Park lawn, tiny white flowers in the grass, a few butterflies around">🦋 Park flowers</button>
+    </div>
     <button id="quest">Give me my quest</button>
     <div class="out" id="questOut"></div>
   </div>
 
   <div class="card hidden" id="step2">
-    <label for="found">Step 2: Put the phone away. Do the tasks, then write what you noticed.</label>
+    <label for="found">👀 Step 2: Put the phone away and do the tasks. Then write what you noticed.</label>
     <textarea id="found" placeholder="e.g. Leaves have 5 pointed lobes, bark is grey and flaky, smells slightly sweet..."></textarea>
-    <button id="reveal">Reveal what it might be</button>
+    <button id="reveal">🌿 Reveal what it might be</button>
     <div class="out" id="revealOut"></div>
   </div>
 
   <div class="card hidden" id="journalCard">
-    <button class="ghost" id="download">Download my field journal (.md)</button>
-    <small id="count"></small>
+    <button class="ghost" id="download" style="margin-top:0">📓 Download my field journal (.md)</button>
+    <span id="count" style="font:.85rem system-ui;color:#5a5a4a"></span>
   </div>
 
-  <p><small>The AI can be wrong, so the confidence level is part of the answer. Always double-check with a local field guide.</small></p>
+  <p class="note">The AI can be wrong, so a confidence level is part of every answer. Always double-check with a local field guide.</p>
 </main>
+
+<footer>
+  <p><b>Look First</b> · built for the DEV Hacktoberfest Open-Source AI Challenge (Week 1: Touch Grass)</p>
+  <p>Open pieces: Gemma (open-weight model) · WebLLM (open-source in-browser inference) · plain HTML/JS</p>
+</footer>
 
 <script type="module">
 import * as webllm from "https://esm.run/@mlc-ai/web-llm";
@@ -78,7 +144,7 @@ let gem = all.filter(id => /gemma/i.test(id));
 gem.sort((a, b) => (/2b.*q4f16_1/i.test(b) ? 1 : 0) - (/2b.*q4f16_1/i.test(a) ? 1 : 0));
 const options = gem.length ? gem : all.filter(id => /(1B|1\.5B|0\.5B)/i.test(id));
 for (const id of options) { const o = document.createElement("option"); o.value = id; o.textContent = id; $("model").appendChild(o); }
-if (!gem.length) $("status").textContent = "No Gemma model found in this WebLLM version, showing small open models instead. Gemma is preferred for the challenge.";
+if (!gem.length) $("status").textContent = "No Gemma model found in this WebLLM version, showing small open models instead.";
 
 $("load").onclick = async () => {
   $("load").disabled = true;
@@ -86,13 +152,16 @@ $("load").onclick = async () => {
     engine = await webllm.CreateMLCEngine($("model").value, {
       initProgressCallback: r => { $("status").textContent = r.text; }
     });
-    $("status").textContent = "Model ready. It now runs offline in your browser.";
+    $("status").textContent = "✅ Model ready. It now runs on your device, even offline.";
     $("step1").classList.remove("hidden");
+    $("step1").scrollIntoView({ behavior: "smooth" });
   } catch (e) {
     $("status").textContent = "Could not load: " + e.message + " (try Chrome or Edge with WebGPU, or a smaller model).";
     $("load").disabled = false;
   }
 };
+
+document.querySelectorAll(".chip").forEach(c => c.onclick = () => { $("where").value = c.dataset.ex; });
 
 async function ask(msgs, outEl) {
   outEl.textContent = "";
@@ -113,6 +182,7 @@ $("quest").onclick = async () => {
   lastQuest = await ask(messages, $("questOut"));
   messages.push({ role: "assistant", content: lastQuest });
   $("step2").classList.remove("hidden");
+  $("step2").scrollIntoView({ behavior: "smooth" });
   $("quest").disabled = false;
 };
 
@@ -121,7 +191,9 @@ $("reveal").onclick = async () => {
   if (!found) return;
   $("reveal").disabled = true;
   messages.push({ role: "user", content: "Here is what I observed: " + found });
-  const answer = await ask(messages, $("revealOut"));
+  const out = $("revealOut");
+  out.classList.add("answer");
+  const answer = await ask(messages, out);
   save({ when: new Date().toLocaleString(), where: lastWhere, quest: lastQuest, found, answer });
   $("reveal").disabled = false;
 };
@@ -132,7 +204,7 @@ function save(entry) {
   try { localStorage.setItem("lookfirst", JSON.stringify(j)); } catch {}
   window.__session = (window.__session || []).concat(entry);
   $("journalCard").classList.remove("hidden");
-  $("count").textContent = " " + (window.__session.length) + " entries this session";
+  $("count").textContent = " " + window.__session.length + " entries this session";
 }
 
 $("download").onclick = () => {
