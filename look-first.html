@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Look First</title>
+<style>
+  :root { --bg:#f4f1e8; --ink:#1f2a1f; --green:#2f6b3a; --card:#fffdf6; --line:#d9d3bf; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.55 Georgia, serif; }
+  main { max-width:680px; margin:0 auto; padding:24px 16px 60px; }
+  h1 { font-size:2rem; margin:0 0 4px; color:var(--green); }
+  .tag { margin:0 0 20px; font-style:italic; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin:14px 0; }
+  label { display:block; font-weight:bold; margin-bottom:6px; }
+  textarea, select { width:100%; font:inherit; padding:10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  textarea { min-height:80px; }
+  button { font:inherit; font-weight:bold; background:var(--green); color:#fff; border:0; border-radius:8px; padding:10px 16px; margin-top:10px; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:wait; }
+  button.ghost { background:transparent; color:var(--green); border:1px solid var(--green); }
+  .out { white-space:pre-wrap; }
+  #status { font-size:.9rem; color:#5a5a4a; }
+  .hidden { display:none; }
+  small { color:#5a5a4a; }
+</style>
+</head>
+<body>
+<main>
+  <h1>🌿 Look First</h1>
+  <p class="tag">An AI naturalist that makes you look up before it tells you anything. Runs Gemma fully in your browser, no server and no API key.</p>
+
+  <div class="card">
+    <label for="model">Model (open-weight, runs on your device)</label>
+    <select id="model"></select>
+    <button id="load">1. Load model (first time takes a few minutes)</button>
+    <p id="status">Needs a WebGPU browser (recent Chrome or Edge).</p>
+  </div>
+
+  <div class="card hidden" id="step1">
+    <label for="where">Step 1: Where are you, and what's around you?</label>
+    <textarea id="where" placeholder="e.g. Campus garden, big tree with rough bark, some small yellow flowers, bees buzzing"></textarea>
+    <button id="quest">Give me my quest</button>
+    <div class="out" id="questOut"></div>
+  </div>
+
+  <div class="card hidden" id="step2">
+    <label for="found">Step 2: Put the phone away. Do the tasks, then write what you noticed.</label>
+    <textarea id="found" placeholder="e.g. Leaves have 5 pointed lobes, bark is grey and flaky, smells slightly sweet..."></textarea>
+    <button id="reveal">Reveal what it might be</button>
+    <div class="out" id="revealOut"></div>
+  </div>
+
+  <div class="card hidden" id="journalCard">
+    <button class="ghost" id="download">Download my field journal (.md)</button>
+    <small id="count"></small>
+  </div>
+
+  <p><small>The AI can be wrong, so the confidence level is part of the answer. Always double-check with a local field guide.</small></p>
+</main>
+
+<script type="module">
+import * as webllm from "https://esm.run/@mlc-ai/web-llm";
+
+const $ = id => document.getElementById(id);
+let engine = null;
+let messages = [];
+let lastWhere = "", lastQuest = "";
+
+const SYSTEM = `You are "Look First", a friendly field-naturalist coach. Your goal is to get people to LOOK at the real world, not at a screen.
+RULES:
+- On the first turn, do NOT name or identify anything. Give exactly 3 short observation tasks (look, touch, smell or listen) that take about 2 minutes total. Number them 1-3. End with: "Now put your phone away and go look."
+- On the second turn, use the person's observations to give a best guess of what it is, a confidence level (low / medium / high), ONE honest caveat about what you might be getting wrong, and ONE tiny next quest nearby (under 10 minutes). Keep it under 120 words.
+- Never invent precise facts. If unsure, say so.`;
+
+// Fill model dropdown with Gemma models from WebLLM's built-in list
+const all = webllm.prebuiltAppConfig.model_list.map(m => m.model_id);
+let gem = all.filter(id => /gemma/i.test(id));
+gem.sort((a, b) => (/2b.*q4f16_1/i.test(b) ? 1 : 0) - (/2b.*q4f16_1/i.test(a) ? 1 : 0));
+const options = gem.length ? gem : all.filter(id => /(1B|1\.5B|0\.5B)/i.test(id));
+for (const id of options) { const o = document.createElement("option"); o.value = id; o.textContent = id; $("model").appendChild(o); }
+if (!gem.length) $("status").textContent = "No Gemma model found in this WebLLM version, showing small open models instead. Gemma is preferred for the challenge.";
+
+$("load").onclick = async () => {
+  $("load").disabled = true;
+  try {
+    engine = await webllm.CreateMLCEngine($("model").value, {
+      initProgressCallback: r => { $("status").textContent = r.text; }
+    });
+    $("status").textContent = "Model ready. It now runs offline in your browser.";
+    $("step1").classList.remove("hidden");
+  } catch (e) {
+    $("status").textContent = "Could not load: " + e.message + " (try Chrome or Edge with WebGPU, or a smaller model).";
+    $("load").disabled = false;
+  }
+};
+
+async function ask(msgs, outEl) {
+  outEl.textContent = "";
+  let text = "";
+  const stream = await engine.chat.completions.create({ messages: msgs, stream: true, temperature: 0.7, max_tokens: 400 });
+  for await (const chunk of stream) {
+    text += chunk.choices[0]?.delta?.content || "";
+    outEl.textContent = text;
+  }
+  return text;
+}
+
+$("quest").onclick = async () => {
+  lastWhere = $("where").value.trim();
+  if (!lastWhere) return;
+  $("quest").disabled = true;
+  messages = [{ role: "system", content: SYSTEM }, { role: "user", content: "Where I am and what's around me: " + lastWhere }];
+  lastQuest = await ask(messages, $("questOut"));
+  messages.push({ role: "assistant", content: lastQuest });
+  $("step2").classList.remove("hidden");
+  $("quest").disabled = false;
+};
+
+$("reveal").onclick = async () => {
+  const found = $("found").value.trim();
+  if (!found) return;
+  $("reveal").disabled = true;
+  messages.push({ role: "user", content: "Here is what I observed: " + found });
+  const answer = await ask(messages, $("revealOut"));
+  save({ when: new Date().toLocaleString(), where: lastWhere, quest: lastQuest, found, answer });
+  $("reveal").disabled = false;
+};
+
+function getJournal() { try { return JSON.parse(localStorage.getItem("lookfirst") || "[]"); } catch { return []; } }
+function save(entry) {
+  const j = getJournal(); j.push(entry);
+  try { localStorage.setItem("lookfirst", JSON.stringify(j)); } catch {}
+  window.__session = (window.__session || []).concat(entry);
+  $("journalCard").classList.remove("hidden");
+  $("count").textContent = " " + (window.__session.length) + " entries this session";
+}
+
+$("download").onclick = () => {
+  const entries = window.__session || getJournal();
+  const md = "# Field Journal\n\n" + entries.map(e =>
+    `## ${e.when}\n**Where:** ${e.where}\n\n**Quest:**\n${e.quest}\n\n**What I noticed:** ${e.found}\n\n**Gemma's guess:**\n${e.answer}\n`
+  ).join("\n---\n\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([md], { type: "text/markdown" }));
+  a.download = "field-journal.md";
+  a.click();
+};
+</script>
+</body>
+</html>
